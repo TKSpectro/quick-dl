@@ -241,12 +241,11 @@ func handleWsMessage(message string) {
 	switch msg.Type {
 	case "download":
 		downloadFile(REQUEST_BODY{Url: msg.Data.Url}, "")
-		break
 
 	case "picked_path":
 		fmt.Println("Picked path: " + msg.Data.Url)
 		downloadFile(REQUEST_BODY{Url: msg.Data.Url}, msg.Data.Id)
-		break
+
 	default:
 		fmt.Println("Invalid message type")
 	}
@@ -258,10 +257,10 @@ func sendError(w http.ResponseWriter, status int, message string) {
 	w.Write([]byte(message))
 }
 
-func sendSuccess(w http.ResponseWriter, message string) {
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(message))
-}
+// func sendSuccess(w http.ResponseWriter, message string) {
+// 	w.WriteHeader(http.StatusOK)
+// 	w.Write([]byte(message))
+// }
 
 type POSSIBLE_PATH struct {
 	Id       string   `json:"id"`

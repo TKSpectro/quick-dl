@@ -10,7 +10,7 @@
     "browser_specific_settings": {
         "gecko": {
             "id": "quick-dl-helper@tkspectro",
-            "strict_min_version": "50.0"
+            "strict_min_version": "58.0"
         }
     },
 
