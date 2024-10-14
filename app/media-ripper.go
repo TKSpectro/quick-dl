@@ -4,11 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"path"
-	"reflect"
-	"sort"
 	"strings"
 
 	"github.com/gorilla/websocket"
@@ -20,10 +19,31 @@ const PORT = 9778
 
 var yt = ytdlp.New()
 
+type URL struct {
+	Url     string `json:"url"`
+	Cookies string `json:"cookies"`
+	Format  string `json:"format"`
+}
+
+type POSSIBLE_PATH struct {
+	Id       string   `json:"id"`
+	Name     string   `json:"name"`
+	Path     string   `json:"path"`
+	Keywords []string `json:"keywords"`
+}
+
+var possiblePaths = []POSSIBLE_PATH{}
+var urls = []URL{}
+
+var logger = slog.New(NewPrettyHandler(os.Stdout, PrettyHandlerOptions{}))
+
 func init() {
 	setupViperConfig()
 
-	parsePossiblePaths()
+	parsePossiblePaths(&possiblePaths)
+	parseUrls(&urls)
+	logger.Info("possiblePaths", "possiblePaths", possiblePaths)
+	logger.Info("urls", "urls", urls)
 
 	ytdlp.MustInstall(context.TODO(), nil)
 
@@ -36,23 +56,10 @@ func main() {
 	setupHttpServer()
 }
 
-func printStruct(s interface{}) {
-	// print key-value pairs of a struct
-
-	v := reflect.ValueOf(s)
-	t := v.Type()
-
-	for i := 0; i < v.NumField(); i++ {
-		fmt.Printf("%s: %v\n", t.Field(i).Name, v.Field(i).Interface())
-	}
-
-	fmt.Println()
-}
-
 func setupViperConfig() {
 	configDir, err := os.UserConfigDir()
 	if err != nil {
-		fmt.Println(err)
+		logger.Error("UserConfigDir", "error", err)
 		os.Exit(1)
 	}
 	configDir = path.Join(configDir, "quick-dl")
@@ -60,7 +67,7 @@ func setupViperConfig() {
 	// Create the config directory if it doesn't exist
 	err = os.MkdirAll(configDir, 0755)
 	if err != nil {
-		fmt.Println("MkdirAll | " + err.Error())
+		logger.Error("MkdirAll", "error", err)
 		os.Exit(1)
 	}
 
@@ -69,7 +76,7 @@ func setupViperConfig() {
 
 	homedir, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Println("UserHomeDir | " + err.Error())
+		logger.Error("UserHomeDir", "error", err)
 		os.Exit(1)
 	}
 
@@ -91,6 +98,14 @@ func setupViperConfig() {
 		},
 	})
 
+	viper.SetDefault("urls", []interface{}{
+		map[string]interface{}{
+			"url":     "",
+			"cookies": "",
+			"format":  "",
+		},
+	})
+
 	viper.AddConfigPath(configDir)
 	viper.SetConfigName("config")
 	viper.SetConfigType("json")
@@ -99,58 +114,9 @@ func setupViperConfig() {
 
 	err = viper.ReadInConfig()
 	if err != nil {
-		fmt.Println("ReadInConfig | " + err.Error())
+		logger.Error("ReadInConfig", "error", err)
 		os.Exit(1)
 	}
-}
-
-var possiblePaths = []POSSIBLE_PATH{}
-
-func parsePossiblePaths() {
-	var id = 0
-
-	// read possible paths from config file
-	for _, url := range viper.Get("paths").([]interface{}) {
-		possiblePaths = append(possiblePaths, POSSIBLE_PATH{
-			Id:       fmt.Sprintf("%d", id),
-			Name:     getString(url, "name"),
-			Path:     getString(url, "path"),
-			Keywords: lowerCaseStringArray(getStringArray(url, "keywords")),
-		})
-
-		id++
-	}
-
-	fmt.Println("Possible paths:")
-	for _, path := range possiblePaths {
-		printStruct(path)
-	}
-}
-
-func getString(urlMap interface{}, key string) string {
-	if value, ok := urlMap.(map[string]interface{})[key]; ok {
-		return value.(string)
-	}
-	return ""
-}
-
-func getStringArray(urlMap interface{}, key string) []string {
-	if value, ok := urlMap.(map[string]interface{})[key]; ok {
-		var arr []string
-		for _, v := range value.([]interface{}) {
-			arr = append(arr, v.(string))
-		}
-		return arr
-	}
-	return []string{}
-}
-
-func lowerCaseStringArray(arr []string) []string {
-	var newArr []string
-	for _, s := range arr {
-		newArr = append(newArr, strings.ToLower(s))
-	}
-	return newArr
 }
 
 type REQUEST_BODY struct {
@@ -173,7 +139,7 @@ func setupHttpServer() {
 	router.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
-			fmt.Println("Upgrade | " + err.Error())
+			fmt.Println("Upgrade", "error", err)
 			return
 		}
 
@@ -182,7 +148,7 @@ func setupHttpServer() {
 		for {
 			_, message, err := conn.ReadMessage()
 			if err != nil {
-				fmt.Println("ReadMessage | " + err.Error())
+				fmt.Println("ReadMessage", "error", err)
 
 				conn.Close()
 				// remove connection from wsConnections
@@ -211,7 +177,7 @@ func sendWsMessage(message string) {
 	for _, conn := range wsConnections {
 		err := conn.WriteMessage(websocket.TextMessage, []byte(message))
 		if err != nil {
-			fmt.Println("WriteMessage | " + err.Error())
+			fmt.Println("WriteMessage", "error", err)
 		}
 	}
 }
@@ -227,46 +193,26 @@ type WS_MESSAGE struct {
 }
 
 func handleWsMessage(message string) {
-	fmt.Println("Message: " + message)
-
 	var msg WS_MESSAGE
 	err := json.Unmarshal([]byte(message), &msg)
 	if err != nil {
-		fmt.Println("Unmarshal | " + err.Error())
+		fmt.Println("Unmarshal", "error", err)
 		return
 	}
 
-	fmt.Println("Type: " + msg.Type)
+	logger.Info("Message", "msg", msg)
 
 	switch msg.Type {
 	case "download":
 		downloadFile(REQUEST_BODY{Url: msg.Data.Url}, "")
 
 	case "picked_path":
-		fmt.Println("Picked path: " + msg.Data.Url)
 		downloadFile(REQUEST_BODY{Url: msg.Data.Url}, msg.Data.Id)
 
 	default:
-		fmt.Println("Invalid message type")
+		logger.Info("Unknown message type", "type", msg.Type)
 	}
 
-}
-
-func sendError(w http.ResponseWriter, status int, message string) {
-	w.WriteHeader(status)
-	w.Write([]byte(message))
-}
-
-// func sendSuccess(w http.ResponseWriter, message string) {
-// 	w.WriteHeader(http.StatusOK)
-// 	w.Write([]byte(message))
-// }
-
-type POSSIBLE_PATH struct {
-	Id       string   `json:"id"`
-	Name     string   `json:"name"`
-	Path     string   `json:"path"`
-	Keywords []string `json:"keywords"`
 }
 
 func downloadFile(body REQUEST_BODY, pathId string) {
@@ -277,47 +223,40 @@ func downloadFile(body REQUEST_BODY, pathId string) {
 
 		r, err := yt.Run(context.TODO(), body.Url)
 		if err != nil {
-			fmt.Println("Run | " + err.Error())
+			logger.Error("Run", "error", err)
+			return
 		}
 
 		info, err := r.GetExtractedInfo()
 		if err != nil {
-			fmt.Println("GetExtractedInfo | " + err.Error())
+			logger.Error("GetExtractedInfo", "error", err)
 			return
 		}
 
 		// write info to test.json
-		// f, err := os.Create("test.json")
-		// if err != nil {
-		// 	fmt.Println("Create | " + err.Error())
-		// 	return
-		// }
+		f, err := os.Create("test.json")
+		if err != nil {
+			logger.Error("Create", "error", err)
+			return
+		}
 
-		// enc := json.NewEncoder(f)
-		// enc.SetIndent("", "  ")
-		// enc.Encode(info)
+		enc := json.NewEncoder(f)
+		enc.SetIndent("", "  ")
+		enc.Encode(info)
 
 		if len(info) > 0 {
 			if info[0].Title == nil {
-				fmt.Println("Title is nil")
+				logger.Error("DownloadFile", "error", "Title is nil")
 				return
 			}
 
 			title := *info[0].Title
-			fmt.Println("Title: " + title)
-
 			paths := getPaths(title)
 
 			if len(paths) == 0 {
 				sendWsMessage("No paths found")
 				return
 			}
-
-			for _, path := range paths {
-				printStruct(*path)
-			}
-
-			// send ws message with json of paths
 
 			json, _ := json.Marshal(&paths)
 
@@ -328,74 +267,49 @@ func downloadFile(body REQUEST_BODY, pathId string) {
 	} else {
 		yt.UnsetSkipDownload()
 
-		fmt.Println("Downloading to path with id: ", pathId)
-
 		path := getPathById(pathId)
+		logger.Info("Downloading to path", "path", path)
 
 		if path == nil {
-			fmt.Println("Path not found")
+			logger.Error("DownloadFile", "error", "Path is nil")
 			return
 		}
 
-		fmt.Println("Path: " + path.Path)
-
 		if path.Path == "" {
-			fmt.Println("Path is empty")
+			logger.Error("DownloadFile", "error", "Path is empty")
 			return
 		}
 
 		yt.Paths(path.Path)
 
+		// check if we have some custom url settings for the given url
+		var customUrl *URL
+		for _, u := range urls {
+			if strings.Contains(body.Url, u.Url) {
+				customUrl = &u
+				break
+			}
+		}
+
+		yt.UnsetCookies()
+		yt.UnsetFormat()
+
+		if customUrl != nil {
+			if customUrl.Cookies != "" {
+				yt.Cookies(customUrl.Cookies)
+			}
+			if customUrl.Format != "" {
+				yt.Format(customUrl.Format)
+			}
+
+			logger.Info("Custom url settings", "customUrl", customUrl)
+		}
+
 		_, err := yt.Run(context.TODO(), body.Url)
 		if err != nil {
-			fmt.Println("Run | " + err.Error())
+			logger.Error("Run", "error", err)
+			return
 		}
 
 	}
-}
-
-// check title for any of the keywords. Copy all paths into a new array, sort it by the number of keywords found in the title and return the array
-func getPaths(title string) []*POSSIBLE_PATH {
-	var cleanTitle = strings.ToLower(title)
-
-	var paths []*POSSIBLE_PATH
-
-	for _, path := range possiblePaths {
-		paths = append(paths, &path)
-	}
-
-	sort.Slice(paths, func(i, j int) bool {
-		var iCount int = 0
-		var jCount int = 0
-
-		for _, keyword := range paths[i].Keywords {
-			if containsKeyword(cleanTitle, keyword) {
-				iCount++
-			}
-		}
-
-		for _, keyword := range paths[j].Keywords {
-			if containsKeyword(cleanTitle, keyword) {
-				jCount++
-			}
-		}
-
-		return iCount > jCount
-	})
-
-	return paths
-}
-
-func getPathById(id string) *POSSIBLE_PATH {
-	for _, path := range possiblePaths {
-		if path.Id == id {
-			return &path
-		}
-	}
-
-	return nil
-}
-
-func containsKeyword(title string, keyword string) bool {
-	return strings.Contains(title, keyword)
 }
