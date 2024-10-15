@@ -1,9 +1,12 @@
 {
     "name": "quick-dl-helper",
-    "version": "1.0.0",
+    "version": "0.4",
     "main": "background.js",
     "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1"
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "lint": "npx web-ext lint",
+        "build": "npx web-ext build --overwrite-dest",
+        "sign": "npx web-ext sign --channel=unlisted --amo-metadata=metadata.json --api-key=$AMO_JWT_ISSUER --api-secret=$AMO_JWT_SECRET"
     },
     "keywords": [],
     "author": "",

@@ -2,7 +2,7 @@
     "description": "Helper Add-on for quick-dl",
     "manifest_version": 2,
     "name": "Quick-DL Helper",
-    "version": "0.3",
+    "version": "0.4",
     "icons": {
         "48": "icons/download.svg"
     },
