@@ -51,7 +51,7 @@ jobs:
                   # https://extensionworkshop.com/documentation/develop/web-ext-command-reference/#web-ext-sign
                   # for more information. You can leave out metaDataFile if all you want to set is approval
                   # notes, release notes, or a license.
-                  metaDataFile: metadata.json
+                  metaDataFile: extension/metadata.json
                   approvalNotes: 'Please find more information at https://github.com/TKSpectro/quick-dl'
                   releaseNotes: ${{ github.event.release.body }}
 
