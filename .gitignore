@@ -3,3 +3,4 @@ temp/
 media-ripper-go
 node_modules/
 web-ext-artifacts/
+.env

@@ -1,0 +1,88 @@
+name: 'Publish'
+on:
+    release:
+        types: [published]
+
+jobs:
+    sign:
+        name: 'Release'
+        runs-on: ubuntu-latest
+        steps:
+            - name: 'Checkout'
+              uses: actions/checkout@v4
+
+            - name: 'web-ext lint'
+              uses: kewisch/action-web-ext@v1
+              with:
+                  cmd: lint
+                  source: extension
+                  channel: listed
+
+            - name: 'web-ext build'
+              id: web-ext-build
+              uses: kewisch/action-web-ext@v1
+              with:
+                  cmd: build
+                  source: extension
+
+            - name: 'Collect sources'
+              run: git archive --format=zip --output=sources.zip ${{ github.ref }}
+
+            - name: 'Collect metadata'
+              id: metadata
+              run: echo "json=$(jq -c . < metadata.json)" >> $GITHUB_OUTPUT
+
+            - name: 'web-ext sign AMO'
+              id: web-ext-sign
+              uses: kewisch/action-web-ext@v1
+              with:
+                  cmd: sign
+
+                  # Source must be the zip/xpi file of the add-on. If your add-on is required to submit
+                  # source as per https://extensionworkshop.com/documentation/publish/source-code-submission/
+                  # policy, you can use sourceCode with a zip file of the original sources. Submitting
+                  # source code is not always required, don't do so if you don't need to.
+                  source: ${{ steps.web-ext-build.outputs.target }}
+                  #   sourceCode: sources.zip
+                  channel: unlisted
+
+                  # Various metadata you can set through the API. See the documentation for the
+                  # --amo-metadata parameter to web-ext sign at
+                  # https://extensionworkshop.com/documentation/develop/web-ext-command-reference/#web-ext-sign
+                  # for more information. You can leave out metaDataFile if all you want to set is approval
+                  # notes, release notes, or a license.
+                  metaDataFile: metadata.json
+                  approvalNotes: 'Please find more information at https://github.com/TKSpectro/quick-dl'
+                  releaseNotes: ${{ github.event.release.body }}
+
+                  # You can set one of the known licenses from
+                  # https://mozilla.github.io/addons-server/topics/api/licenses.html#license-list
+                  # by just passing the license property. If you have a custsom license, read it from a
+                  # file as follows.
+                  #   license: Apache-2.0 # You only need to specify a license file if you are using a
+                  #   licenseFile: LICENSE.md # custom license. Please see action.yml for details.
+
+                  # Specify API secrets. No need to specify apiUrlPrefix, it defaults to AMO production
+                  apiKey: ${{ secrets.AMO_SIGN_KEY }}
+                  apiSecret: ${{ secrets.AMO_SIGN_SECRET }}
+                  timeout: 900000
+
+            - name: 'web-ext sign ATN'
+              id: web-ext-sign
+              uses: kewisch/action-web-ext@v1
+              with:
+                  # This is how to sign for Thunderbird. Note that Thunderbird uses API v4, where many
+                  # metadata fields are not supported.
+                  cmd: sign
+                  source: ${{ steps.web-ext-build.outputs.target }}
+                  channel: listed
+                  apiUrlPrefix: 'https://addons.thunderbird.net/api/v4'
+                  apiKey: ${{ secrets.ATN_SIGN_KEY }}
+                  apiSecret: ${{ secrets.ATN_SIGN_SECRET }}
+
+            - name: 'Attach release assets to release'
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  gh release upload ${{ github.event.release.tag_name }} \
+                    ${{ steps.web-ext-sign.outputs.target }}

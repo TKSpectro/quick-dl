@@ -1,0 +1,10 @@
+{
+    "categories": { "firefox": ["download-management"] },
+    "requires_payment": false,
+    "homepage": {
+        "en-US": "https://github.com/TKSpectro/quick-dl"
+    },
+    "summary": {
+        "en-US": "Helper Add-on for quick-dl"
+    }
+}
