@@ -4,3 +4,6 @@ media-ripper-go
 node_modules/
 web-ext-artifacts/
 .env
+.amo-upload-uuid
+test.json
+cookies.txt

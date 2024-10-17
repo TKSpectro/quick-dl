@@ -144,6 +144,7 @@ func setupHttpServer() {
 		}
 
 		wsConnections = append(wsConnections, conn)
+		logger.Info("New connection", "addr", conn.RemoteAddr())
 
 		for {
 			_, message, err := conn.ReadMessage()
@@ -227,31 +228,30 @@ func downloadFile(body REQUEST_BODY, pathId string) {
 			return
 		}
 
-		info, err := r.GetExtractedInfo()
-		if err != nil {
-			logger.Error("GetExtractedInfo", "error", err)
+		var result map[string]any
+		if err := json.Unmarshal([]byte(r.Stdout), &result); err != nil {
+			logger.Error("Unmarshal", "error", err)
 			return
 		}
 
-		// write info to test.json
-		f, err := os.Create("test.json")
-		if err != nil {
-			logger.Error("Create", "error", err)
-			return
+		var title string
+		var tags []string
+
+		if result["title"] != nil {
+			title = result["title"].(string)
 		}
 
-		enc := json.NewEncoder(f)
-		enc.SetIndent("", "  ")
-		enc.Encode(info)
-
-		if len(info) > 0 {
-			if info[0].Title == nil {
-				logger.Error("DownloadFile", "error", "Title is nil")
-				return
+		if result["tags"] != nil {
+			for _, tag := range result["tags"].([]interface{}) {
+				tags = append(tags, tag.(string))
 			}
+		}
 
-			title := *info[0].Title
-			paths := getPaths(title)
+		logger.Info("Title", "title", title)
+		logger.Info("Tags", "tags", tags)
+
+		if title != "" {
+			paths := getPaths(title, tags)
 
 			if len(paths) == 0 {
 				sendWsMessage("No paths found")

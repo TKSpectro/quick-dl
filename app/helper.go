@@ -59,7 +59,7 @@ func sendError(w http.ResponseWriter, status int, message string) {
 // }
 
 // check title for any of the keywords. Copy all paths into a new array, sort it by the number of keywords found in the title and return the array
-func getPaths(title string) []*POSSIBLE_PATH {
+func getPaths(title string, tags []string) []*POSSIBLE_PATH {
 	var cleanTitle = strings.ToLower(title)
 
 	var paths []*POSSIBLE_PATH
@@ -76,12 +76,29 @@ func getPaths(title string) []*POSSIBLE_PATH {
 			if containsKeyword(cleanTitle, keyword) {
 				iCount++
 			}
+
+			for _, tag := range tags {
+				if containsKeyword(tag, keyword) {
+					iCount++
+				}
+			}
 		}
 
 		for _, keyword := range paths[j].Keywords {
 			if containsKeyword(cleanTitle, keyword) {
 				jCount++
 			}
+
+			for _, tag := range tags {
+				if containsKeyword(tag, keyword) {
+					jCount++
+				}
+			}
+		}
+
+		// If the count is the same, sort by name
+		if iCount == jCount {
+			return strings.ToLower(paths[i].Name) < strings.ToLower(paths[j].Name)
 		}
 
 		return iCount > jCount
