@@ -59,7 +59,7 @@ func main() {
 func setupViperConfig() {
 	configDir, err := os.UserConfigDir()
 	if err != nil {
-		logger.Error("UserConfigDir", "error", err)
+		logger.Error("UserConfigDir", "error", err.Error())
 		os.Exit(1)
 	}
 	configDir = path.Join(configDir, "quick-dl")
@@ -67,7 +67,7 @@ func setupViperConfig() {
 	// Create the config directory if it doesn't exist
 	err = os.MkdirAll(configDir, 0755)
 	if err != nil {
-		logger.Error("MkdirAll", "error", err)
+		logger.Error("MkdirAll", "error", err.Error())
 		os.Exit(1)
 	}
 
@@ -76,7 +76,7 @@ func setupViperConfig() {
 
 	homedir, err := os.UserHomeDir()
 	if err != nil {
-		logger.Error("UserHomeDir", "error", err)
+		logger.Error("UserHomeDir", "error", err.Error())
 		os.Exit(1)
 	}
 
@@ -114,7 +114,7 @@ func setupViperConfig() {
 
 	err = viper.ReadInConfig()
 	if err != nil {
-		logger.Error("ReadInConfig", "error", err)
+		logger.Error("ReadInConfig", "error", err.Error())
 		os.Exit(1)
 	}
 }
@@ -220,17 +220,19 @@ func downloadFile(body REQUEST_BODY, pathId string) {
 	yt.PrintJSON()
 
 	if pathId == "" {
+		setCookies(checkCookies(body.Url))
+
 		yt.SkipDownload()
 
 		r, err := yt.Run(context.TODO(), body.Url)
 		if err != nil {
-			logger.Error("Run", "error", err)
+			logger.Error("Run", "error", err.Error())
 			return
 		}
 
 		var result map[string]any
 		if err := json.Unmarshal([]byte(r.Stdout), &result); err != nil {
-			logger.Error("Unmarshal", "error", err)
+			logger.Error("Unmarshal", "error", err.Error())
 			return
 		}
 
@@ -247,8 +249,20 @@ func downloadFile(body REQUEST_BODY, pathId string) {
 			}
 		}
 
+		var formats []string
+		if result["formats"] != nil {
+			// formats is array of objects which contain a data field which contains the format key and value
+			for _, format := range result["formats"].([]interface{}) {
+				formatMap := format.(map[string]interface{})
+				if formatMap["format"] != nil {
+					formats = append(formats, formatMap["format"].(string))
+				}
+			}
+		}
+
 		logger.Info("Title", "title", title)
 		logger.Info("Tags", "tags", tags)
+		logger.Info("Formats", "formats", formats)
 
 		if title != "" {
 			paths := getPaths(title, tags)
@@ -283,21 +297,12 @@ func downloadFile(body REQUEST_BODY, pathId string) {
 		yt.Paths(path.Path)
 
 		// check if we have some custom url settings for the given url
-		var customUrl *URL
-		for _, u := range urls {
-			if strings.Contains(body.Url, u.Url) {
-				customUrl = &u
-				break
-			}
-		}
+		customUrl := checkCookies(body.Url)
 
-		yt.UnsetCookies()
+		setCookies(customUrl)
+
 		yt.UnsetFormat()
-
 		if customUrl != nil {
-			if customUrl.Cookies != "" {
-				yt.Cookies(customUrl.Cookies)
-			}
 			if customUrl.Format != "" {
 				yt.Format(customUrl.Format)
 			}
@@ -305,11 +310,32 @@ func downloadFile(body REQUEST_BODY, pathId string) {
 			logger.Info("Custom url settings", "customUrl", customUrl)
 		}
 
-		_, err := yt.Run(context.TODO(), body.Url)
+		result, err := yt.Run(context.TODO(), body.Url)
 		if err != nil {
-			logger.Error("Run", "error", err)
+			logger.Error("Run", "error", err.Error())
 			return
 		}
 
+		logger.Info("Result", "result", result)
+
 	}
+}
+
+func checkCookies(url string) *URL {
+	for _, u := range urls {
+		if strings.Contains(url, u.Url) {
+			return &u
+		}
+	}
+
+	return nil
+}
+
+func setCookies(url *URL) {
+	if url == nil {
+		return
+	}
+
+	yt.UnsetCookies()
+	yt.Cookies(url.Cookies)
 }
