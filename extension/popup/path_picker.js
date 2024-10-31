@@ -1,5 +1,8 @@
 let url = '';
 
+// Proxy for WebSocket connection state to get getter/setter
+let wsConnectionState = WebSocket.CLOSED;
+
 document.addEventListener('click', (e) => {
     function download(tabs) {
         browser.runtime.sendMessage({
@@ -35,6 +38,13 @@ document.addEventListener('click', (e) => {
             });
             break;
         }
+        case 'reconnect': {
+            console.log('Reconnect button clicked');
+            browser.runtime.sendMessage({
+                command: 'ws-reconnect',
+            });
+            break;
+        }
         default: {
             console.error(`Unknown button clicked: ${e.target.id}`);
         }
@@ -66,6 +76,25 @@ browser.runtime.onMessage.addListener((message) => {
 
             pathSelector.style.display = 'block';
             pathSelectStart.style.display = 'block';
+
+            break;
+        }
+        case 'ws-connection': {
+            console.log('WS Connection:', message.state);
+
+            wsConnectionState = message.state;
+
+            const reconnectButton = document.getElementById('reconnect');
+            if (wsConnectionState !== WebSocket.OPEN) {
+                reconnectButton.style.display = 'block';
+            } else {
+                reconnectButton.style.display = 'none';
+            }
+            break;
+        }
+        case 'error': {
+            error.textContent = message.error;
+            error.style.display = 'block';
 
             break;
         }

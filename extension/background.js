@@ -2,12 +2,37 @@ const PORT = 9778;
 
 /** @type{WebSocket} */
 let ws;
-connectWS();
 
-let reconnectInterval = 5000;
+let reconnectInterval = 1000;
 let reconnectAttempts = 0;
 
+/**
+ *
+ * @param {{command:string}} message
+ */
+async function sendToFE(message) {
+    try {
+        await browser.runtime.sendMessage(message);
+    } catch (error) {
+        // console.error('Failed to send message to FE:', error);
+    }
+}
+
+async function handleError(error, key) {
+    try {
+        console.error('Error:', key, error);
+        await browser.runtime.sendMessage({ command: 'error', error });
+    } catch (error) {
+        // console.error('Failed to send error to FE:', error);
+    }
+}
+
 function connectWS() {
+    if (ws) {
+        ws.close();
+    }
+
+    console.info('Connecting to the server');
     ws = new WebSocket(`ws://localhost:${PORT}/ws`);
 
     ws.onopen = () => {
@@ -17,18 +42,24 @@ function connectWS() {
     ws.onmessage = async (event) => {
         const json = JSON.parse(event.data);
         switch (json.type) {
-            case 'choose_path':
-                browser.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
-                    browser.runtime.sendMessage({
+            case 'choose_path': {
+                browser.tabs.query({ active: true, currentWindow: true }).then(async (tabs) => {
+                    await browser.runtime.sendMessage({
                         command: 'choose_path',
                         url: tabs[0].url,
                         paths: json.paths,
                     });
                 });
                 break;
-            default:
-                console.error('Unknown message type:', json.type);
+            }
+            case 'error': {
+                await handleError(json.message, json.error);
                 break;
+            }
+            default: {
+                await handleError('Unknown message type: ' + json.type);
+                break;
+            }
         }
     };
 
@@ -36,22 +67,39 @@ function connectWS() {
         console.info('Disconnected from the server');
     };
 
-    ws.onerror = (error) => {
-        console.error('Error:', error);
+    ws.onerror = async (error) => {
+        await handleError(error);
     };
 }
 
-setInterval(() => {
+console.info('Starting the background script');
+connectWS();
+
+setInterval(async () => {
     if (ws.readyState === WebSocket.CLOSED) {
         reconnectAttempts++;
         console.info('Reconnecting to the server. ReconnectAttempts: ' + reconnectAttempts);
         connectWS();
+    } else if (ws.readyState === WebSocket.CONNECTING) {
+        console.debug(`Still trying to connect to the server for attempt ${reconnectAttempts}`);
+
+        // Increase the interval for each 5 attempts capping at 60 seconds
+        if (reconnectAttempts % 5 === 0 && reconnectInterval < 60000) {
+            reconnectInterval *= 2;
+        }
+
+        reconnectAttempts++;
+    } else if (ws.readyState === WebSocket.CLOSING) {
+        // Do nothing
     } else {
         reconnectAttempts = 0;
+        reconnectInterval = 1000;
     }
+
+    await sendToFE({ command: 'ws-connection', state: ws.readyState });
 }, reconnectInterval);
 
-browser.runtime.onMessage.addListener((message) => {
+browser.runtime.onMessage.addListener(async (message) => {
     switch (message.command) {
         case 'download': {
             ws.send(JSON.stringify({ type: 'download', data: { url: message.url } }));
@@ -69,8 +117,13 @@ browser.runtime.onMessage.addListener((message) => {
             );
             break;
         }
+        case 'ws-reconnect': {
+            console.info('Reconnecting to the server');
+            connectWS();
+            break;
+        }
         default: {
-            console.error('Unknown command:', message.command);
+            await handleError('Unknown command: ' + message.command);
             break;
         }
     }

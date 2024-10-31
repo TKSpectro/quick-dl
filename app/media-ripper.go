@@ -213,7 +213,20 @@ func handleWsMessage(message string) {
 	default:
 		logger.Info("Unknown message type", "type", msg.Type)
 	}
+}
 
+// log error and send error message to ws with handleWsMessage
+func handleErrorToWS(key string, err error) {
+	fullString := `{"type":"error", "error":"` + key + `", "message":"` + escapeError(err) + `"}`
+
+	sendWsMessage(fullString)
+}
+
+func escapeError(err error) string {
+	res := strings.ReplaceAll(err.Error(), `"`, `\"`)
+	res = strings.ReplaceAll(res, "\n", "\\n")
+
+	return res
 }
 
 func downloadFile(body REQUEST_BODY, pathId string) {
@@ -227,12 +240,14 @@ func downloadFile(body REQUEST_BODY, pathId string) {
 		r, err := yt.Run(context.TODO(), body.Url)
 		if err != nil {
 			logger.Error("Run", "error", err.Error())
+			handleErrorToWS("run", err)
 			return
 		}
 
 		var result map[string]any
 		if err := json.Unmarshal([]byte(r.Stdout), &result); err != nil {
 			logger.Error("Unmarshal", "error", err.Error())
+			handleErrorToWS("", err)
 			return
 		}
 
@@ -313,6 +328,7 @@ func downloadFile(body REQUEST_BODY, pathId string) {
 		result, err := yt.Run(context.TODO(), body.Url)
 		if err != nil {
 			logger.Error("Run", "error", err.Error())
+			handleErrorToWS("run", err)
 			return
 		}
 
