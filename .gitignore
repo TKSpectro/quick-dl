@@ -1,4 +1,3 @@
-app/tmp/
 temp/
 media-ripper-go
 node_modules/
@@ -7,3 +6,4 @@ web-ext-artifacts/
 .amo-upload-uuid
 test.json
 cookies.txt
+tmp

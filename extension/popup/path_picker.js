@@ -85,10 +85,13 @@ browser.runtime.onMessage.addListener((message) => {
             wsConnectionState = message.state;
 
             const reconnectButton = document.getElementById('reconnect');
+            const downloadButton = document.getElementById('download');
             if (wsConnectionState !== WebSocket.OPEN) {
+                downloadButton.style.display = 'none';
                 reconnectButton.style.display = 'block';
             } else {
                 reconnectButton.style.display = 'none';
+                downloadButton.style.display = 'block';
             }
             break;
         }

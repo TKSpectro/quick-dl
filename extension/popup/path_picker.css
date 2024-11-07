@@ -1,0 +1,36 @@
+/* Build out a minimal ui for 2 buttons (Download, Reconnect - Is only shown if no connection is active) and a error field which just contains text */
+/* The error field is hidden by default */
+
+/* The container for the buttons */
+.path_picker {
+    text-align: center;
+    padding: 10px;
+}
+
+/* The error field */
+.error {
+    color: red;
+    display: block;
+    margin-top: 10px;
+}
+
+/* The buttons container */
+.buttons {
+    width: 100%;
+    text-align: center;
+}
+
+/* The buttons */
+.path_picker button {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    background-color: #f9f9f9;
+    cursor: pointer;
+    margin: 0 5px;
+}
+
+/* The buttons hover state */
+.path_picker button:hover {
+    background-color: #f1f1f1;
+}
