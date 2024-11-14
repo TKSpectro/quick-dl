@@ -17,8 +17,6 @@ import (
 
 const PORT = 9778
 
-var yt = ytdlp.New()
-
 type URL struct {
 	Url     string `json:"url"`
 	Cookies string `json:"cookies"`
@@ -46,10 +44,6 @@ func init() {
 	logger.Info("urls", "urls", urls)
 
 	ytdlp.MustInstall(context.TODO(), nil)
-
-	if viper.GetBool("quiet") {
-		yt.Quiet()
-	}
 }
 
 func main() {
@@ -163,7 +157,7 @@ func setupHttpServer() {
 				return
 			}
 
-			handleWsMessage(string(message))
+			go handleWsMessage(string(message))
 		}
 	})
 
@@ -230,10 +224,11 @@ func escapeError(err error) string {
 }
 
 func downloadFile(body REQUEST_BODY, pathId string) {
+	yt := getYt()
 	yt.PrintJSON()
 
 	if pathId == "" {
-		setCookies(checkCookies(body.Url))
+		setCookies(yt, checkCookies(body.Url))
 
 		yt.SkipDownload()
 
@@ -314,7 +309,7 @@ func downloadFile(body REQUEST_BODY, pathId string) {
 		// check if we have some custom url settings for the given url
 		customUrl := checkCookies(body.Url)
 
-		setCookies(customUrl)
+		setCookies(yt, customUrl)
 
 		yt.UnsetFormat()
 		if customUrl != nil {
@@ -337,6 +332,16 @@ func downloadFile(body REQUEST_BODY, pathId string) {
 	}
 }
 
+func getYt() *ytdlp.Command {
+	var yt = ytdlp.New()
+
+	if viper.GetBool("quiet") {
+		yt.Quiet()
+	}
+
+	return yt
+}
+
 func checkCookies(url string) *URL {
 	for _, u := range urls {
 		if strings.Contains(url, u.Url) {
@@ -347,7 +352,7 @@ func checkCookies(url string) *URL {
 	return nil
 }
 
-func setCookies(url *URL) {
+func setCookies(yt *ytdlp.Command, url *URL) {
 	if url == nil {
 		return
 	}
