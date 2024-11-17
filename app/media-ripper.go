@@ -67,6 +67,7 @@ func setupViperConfig() {
 
 	viper.SetDefault("path", "")
 	viper.SetDefault("quiet", false)
+	viper.SetDefault("audioFormat", "mp3")
 
 	homedir, err := os.UserHomeDir()
 	if err != nil {
@@ -178,8 +179,10 @@ func sendWsMessage(message string) {
 }
 
 type WS_MESSAGE_DATA struct {
-	Url string `json:"url"`
-	Id  string `json:"id"`
+	Url       string `json:"url"`       // url to download
+	Id        string `json:"id"`        // path id
+	Format    string `json:"format"`    // format to download
+	AudioOnly bool   `json:"audioOnly"` // download as audio only
 }
 
 type WS_MESSAGE struct {
@@ -199,11 +202,10 @@ func handleWsMessage(message string) {
 
 	switch msg.Type {
 	case "download":
-		downloadFile(REQUEST_BODY{Url: msg.Data.Url}, "")
+		downloadFile(REQUEST_BODY{Url: msg.Data.Url}, "", false)
 
 	case "picked_path":
-		downloadFile(REQUEST_BODY{Url: msg.Data.Url}, msg.Data.Id)
-
+		downloadFile(REQUEST_BODY{Url: msg.Data.Url}, msg.Data.Id, msg.Data.AudioOnly)
 	default:
 		logger.Info("Unknown message type", "type", msg.Type)
 	}
@@ -223,7 +225,7 @@ func escapeError(err error) string {
 	return res
 }
 
-func downloadFile(body REQUEST_BODY, pathId string) {
+func downloadFile(body REQUEST_BODY, pathId string, audioOnly bool) {
 	yt := getYt()
 	yt.PrintJSON()
 
@@ -282,9 +284,10 @@ func downloadFile(body REQUEST_BODY, pathId string) {
 				return
 			}
 
-			json, _ := json.Marshal(&paths)
+			pathJson, _ := json.Marshal(&paths)
+			formatJson, _ := json.Marshal(&formats)
 
-			fullString := `{"type":"choose_path","url":"` + body.Url + `","paths":` + string(json) + `}`
+			fullString := `{"type":"choose_path","url":"` + body.Url + `","paths":` + string(pathJson) + `,"formats":` + string(formatJson) + `}`
 
 			sendWsMessage(fullString)
 		}
@@ -304,7 +307,7 @@ func downloadFile(body REQUEST_BODY, pathId string) {
 			return
 		}
 
-		yt.Paths(path.Path)
+		// yt.Paths(path.Path)
 
 		// check if we have some custom url settings for the given url
 		customUrl := checkCookies(body.Url)
@@ -318,6 +321,11 @@ func downloadFile(body REQUEST_BODY, pathId string) {
 			}
 
 			logger.Info("Custom url settings", "customUrl", customUrl)
+		}
+
+		if audioOnly {
+			yt.ExtractAudio()
+			yt.AudioFormat(viper.GetString("audioFormat"))
 		}
 
 		result, err := yt.Run(context.TODO(), body.Url)

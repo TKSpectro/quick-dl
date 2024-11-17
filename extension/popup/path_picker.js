@@ -21,7 +21,13 @@ document.addEventListener('click', (e) => {
     }
 
     switch (e.target.id) {
+        case 'loading': {
+            break;
+        }
         case 'download': {
+            const loading = document.getElementById('loading');
+            loading.style.display = 'block';
+
             browser.tabs
                 .query({ active: true, currentWindow: true })
                 .then(download)
@@ -30,16 +36,20 @@ document.addEventListener('click', (e) => {
         }
         case 'path_select_start': {
             const pathId = document.getElementById('path_select').value;
+            const audioOnlyCheckbox = document.getElementById('audio_only');
 
             browser.runtime.sendMessage({
                 command: 'picked_path',
                 url: url,
                 id: pathId,
+                audioOnly: audioOnlyCheckbox.checked,
             });
+
+            localStorage.setItem('audioOnly', audioOnlyCheckbox.checked);
+
             break;
         }
         case 'reconnect': {
-            console.log('Reconnect button clicked');
             browser.runtime.sendMessage({
                 command: 'ws-reconnect',
             });
@@ -51,9 +61,17 @@ document.addEventListener('click', (e) => {
     }
 });
 
+// set audioOnly checkbox to checked if it was previously checked
+const audioOnlyCheckbox = document.getElementById('audio_only');
+if (localStorage.getItem('audioOnly') === 'true') {
+    audioOnlyCheckbox.checked = true;
+}
+
 browser.runtime.onMessage.addListener((message) => {
+    const downloadOptions = document.getElementById('download-options');
     const pathSelector = document.getElementById('path_select');
     const pathSelectStart = document.getElementById('path_select_start');
+    const loading = document.getElementById('loading');
 
     const error = document.getElementById('error-content');
 
@@ -74,8 +92,10 @@ browser.runtime.onMessage.addListener((message) => {
                 pathSelector.appendChild(option);
             }
 
-            pathSelector.style.display = 'block';
+            downloadOptions.style.display = 'block';
             pathSelectStart.style.display = 'block';
+
+            loading.style.display = 'none';
 
             break;
         }
@@ -98,6 +118,8 @@ browser.runtime.onMessage.addListener((message) => {
         case 'error': {
             error.textContent = message.error;
             error.style.display = 'block';
+
+            loading.style.display = 'none';
 
             break;
         }

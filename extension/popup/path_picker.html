@@ -6,10 +6,22 @@
     </head>
 
     <body>
+        <div id="loading">
+            <p>Loading...</p>
+        </div>
         <div id="popup-content" class="path_picker">
-            <button id="download">Download</button>
+            <button id="download" class="mb">Download</button>
 
-            <select id="path_select" style="display: none"></select>
+            <!-- Options for the download (path selector, audio only checkbox -->
+            <div id="download-options" style="display: none" class="mb">
+                <label for="path_select">Path</label>
+                <select id="path_select"></select>
+                <!-- checkbox for audio only download -->
+                <p>
+                    <label for="audio_only">Audio only</label>
+                    <input type="checkbox" id="audio_only" name="audio_only" />
+                </p>
+            </div>
 
             <button id="path_select_start" style="display: none">Start</button>
 

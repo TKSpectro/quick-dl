@@ -112,6 +112,7 @@ browser.runtime.onMessage.addListener(async (message) => {
                     data: {
                         url: message.url,
                         id: message.id,
+                        audioOnly: message.audioOnly,
                     },
                 })
             );
