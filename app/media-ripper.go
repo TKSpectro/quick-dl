@@ -307,7 +307,7 @@ func downloadFile(body REQUEST_BODY, pathId string, audioOnly bool) {
 			return
 		}
 
-		// yt.Paths(path.Path)
+		yt.Paths(path.Path)
 
 		// check if we have some custom url settings for the given url
 		customUrl := checkCookies(body.Url)

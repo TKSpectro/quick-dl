@@ -7,3 +7,4 @@ web-ext-artifacts/
 test.json
 cookies.txt
 tmp
+app/swap.sh
