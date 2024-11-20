@@ -52,7 +52,30 @@ function connectWS() {
                 });
                 break;
             }
+            case 'download-started': {
+                browser.browserAction.setBadgeText({ text: '...' });
+                break;
+            }
+            case 'download-finished': {
+                browser.browserAction.setBadgeText({ text: '' });
+                const uuid = crypto.randomUUID();
+
+                browser.notifications.create({
+                    id: uuid,
+                    type: 'basic',
+                    iconUrl: browser.extension.getURL('icons/link-48.png'),
+                    title: `quick-dl finished downloading ${json.title}`,
+                    message: `Downloaded to ${json.path}`,
+                });
+
+                setTimeout(() => {
+                    browser.notifications.clear(uuid);
+                }, 5000);
+                break;
+            }
             case 'error': {
+                browser.browserAction.setBadgeText({ text: 'ERR' });
+
                 await handleError(json.message, json.error);
                 break;
             }

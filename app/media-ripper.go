@@ -43,7 +43,7 @@ func init() {
 	logger.Info("possiblePaths", "possiblePaths", possiblePaths)
 	logger.Info("urls", "urls", urls)
 
-	ytdlp.MustInstall(context.TODO(), nil)
+	ytdlp.MustInstall(context.TODO(), &ytdlp.InstallOptions{AllowVersionMismatch: true})
 }
 
 func main() {
@@ -328,6 +328,8 @@ func downloadFile(body REQUEST_BODY, pathId string, audioOnly bool) {
 			yt.AudioFormat(viper.GetString("audioFormat"))
 		}
 
+		sendWsMessage(`{"type": "download-started"}`)
+
 		result, err := yt.Run(context.TODO(), body.Url)
 		if err != nil {
 			logger.Error("Run", "error", err.Error())
@@ -336,7 +338,7 @@ func downloadFile(body REQUEST_BODY, pathId string, audioOnly bool) {
 		}
 
 		logger.Info("Result", "result", result)
-
+		sendWsMessage(`{"type": "download-finished", "path": "` + path.Path + `"}`)
 	}
 }
 
