@@ -1,4 +1,4 @@
-module github.com/TKSpectro/media-ripper-go
+module github.com/TKSpectro/quick-dl
 
 go 1.23.2
 
