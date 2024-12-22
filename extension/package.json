@@ -1,6 +1,6 @@
 {
     "name": "quick-dl-helper",
-    "version": "0.12",
+    "version": "0.14",
     "main": "background.js",
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1",

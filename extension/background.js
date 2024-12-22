@@ -6,6 +6,52 @@ let ws;
 let reconnectInterval = 1000;
 let reconnectAttempts = 0;
 
+const defaultColor = 'rgba(136, 136, 136, 0.32)';
+const errorColor = '#FF0000';
+
+const badgeData = new Proxy(
+    {
+        hasError: false,
+        currentDownloads: 0,
+    },
+    {
+        set: (target, prop, value) => {
+            console.log('Setting badge data', prop, value);
+            // never let the currentDownloads go below 0
+            if (prop === 'currentDownloads' && value < 0) {
+                value = 0;
+            }
+
+            Reflect.set(target, prop, value);
+
+            browser.browserAction.setBadgeBackgroundColor({ color: defaultColor });
+
+            if (!target.hasError && target.currentDownloads === 0) {
+                browser.browserAction.setBadgeText({ text: '' });
+                return true;
+            }
+
+            let text = '';
+            if (target.currentDownloads > 0) {
+                text = `${target.currentDownloads}`;
+            }
+            if (target.hasError) {
+                if (text !== '') {
+                    text += ' | ';
+                }
+
+                text += 'ERR';
+                browser.browserAction.setBadgeBackgroundColor({ color: errorColor });
+            }
+
+            console.log('Badge text:', text, target);
+
+            browser.browserAction.setBadgeText({ text });
+            return true;
+        },
+    }
+);
+
 /**
  *
  * @param {{command:string}} message
@@ -53,11 +99,11 @@ function connectWS() {
                 break;
             }
             case 'download-started': {
-                browser.browserAction.setBadgeText({ text: '...' });
+                badgeData.currentDownloads++;
                 break;
             }
             case 'download-finished': {
-                browser.browserAction.setBadgeText({ text: '' });
+                badgeData.currentDownloads--;
                 const uuid = crypto.randomUUID();
 
                 browser.notifications.create({
@@ -74,7 +120,8 @@ function connectWS() {
                 break;
             }
             case 'error': {
-                browser.browserAction.setBadgeText({ text: 'ERR' });
+                badgeData.currentDownloads--;
+                badgeData.hasError = true;
 
                 await handleError(json.message, json.error);
                 break;
@@ -96,6 +143,7 @@ function connectWS() {
 }
 
 console.info('Starting the background script');
+console.log('Badge data:', badgeData);
 connectWS();
 
 setInterval(async () => {
@@ -139,6 +187,7 @@ browser.runtime.onMessage.addListener(async (message) => {
                     },
                 })
             );
+            badgeData.hasError = false;
             break;
         }
         case 'ws-reconnect': {
